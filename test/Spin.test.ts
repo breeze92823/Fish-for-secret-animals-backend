@@ -6,6 +6,7 @@ import { WorldState } from "../src/rooms/schema/WorldState.js";
 import { __setPlayersForTest, type PlayerDoc } from "../src/db.js";
 import { SPIN_CAP, SPIN_EVERY_MS, SPIN_START, SPIN_WEDGES } from "../src/constants.js";
 import { accrue, rollWedge, spinStateFrom } from "../src/spin.js";
+import { sanitizeGame } from "../src/game.js";
 import { testServer } from "./server.js";
 import { fakePlayers, sleep } from "./fakePlayers.js";
 
@@ -40,13 +41,13 @@ describe("spin wheel", () => {
   });
 
   it("spends a spin, rolls the prize on the server and saves the count", async () => {
-    const fake = fakePlayers([{ _id: "s1", trophies: 5, spins: 2, spinAt: Date.now() + 60_000, version: 1, updatedAt: new Date() }]);
+    const fake = fakePlayers([{ _id: "s1", game: sanitizeGame({ money: 5 })!, spins: 2, spinAt: Date.now() + 60_000, version: 1, updatedAt: new Date() }]);
     __setPlayersForTest(fake);
     const room = await colyseus.createRoom<WorldState>("world", {});
     const c = await colyseus.connectTo(room, { userId: "s1" });
     const got: any[] = [];
     let state: any = null;
-    c.onMessage("progress", () => {});
+    c.onMessage("game", () => {});
     c.onMessage("spins", (m: any) => (state = m));
     c.onMessage("spinResult", (m: any) => got.push(m));
     c.onMessage("daily", () => {});
@@ -64,10 +65,10 @@ describe("spin wheel", () => {
     assert.strictEqual(got[1].spins, 0);
     assert.deepStrictEqual([got[2].ok, got[2].reason], [false, "none"]);
     assert.strictEqual(fake.docs.get("s1")?.spins, 0);
-    assert.strictEqual(fake.docs.get("s1")?.trophies, 5, "the rest of the save is untouched");
+    assert.strictEqual((fake.docs.get("s1") as any)?.game.money, 5, "the rest of the save is untouched");
 
     // A client save can't hand itself spins.
-    c.send("saveProgress", { spins: 99, spinAt: 0 });
+    c.send("saveGame", { money: 5, spins: 99, spinAt: 0 });
     await sleep(150);
     assert.strictEqual(fake.docs.get("s1")?.spins, 0);
   });
@@ -78,7 +79,7 @@ describe("spin wheel", () => {
     const room = await colyseus.createRoom<WorldState>("world", {});
     const c = await colyseus.connectTo(room, { userId: "guest-q" });
     let res: any = null;
-    c.onMessage("noProgress", () => {});
+    c.onMessage("game", () => {});
     c.onMessage("spins", () => {});
     c.onMessage("spinResult", (m: any) => (res = m));
     c.onMessage("daily", () => {});

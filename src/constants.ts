@@ -6,20 +6,19 @@ export const GAME_SLUG = process.env.BLOXITY_GAME_ID || "fish-for-secret-animals
 // Most baddies one base shows (the client's ECONOMY.maxCapacity).
 export const PEN_MAX = 24;
 // A room holds exactly one player per base, so every player gets a base of their own. This is also
-// the `seatCap` the deploy workflow sends to Bloxity (https://hosting.bloxity.io/docs): the
-// matchmaker fills a pod to it, then starts another. Keep it a plain number (the workflow reads
-// BASE_COUNT with grep).
+// the `roomSize` the deploy workflow sends to Bloxity (docs.bloxity.io, Multiplayer matchmaker):
+// Boxity sizes the pod in whole rooms of this many players. Keep BASE_COUNT a plain number (the
+// workflow reads it with grep).
 export const ROOM_MAX_CLIENTS = BASE_COUNT;
 
 // Longest accepted strings.
 export const NAME_MAX = 64;
 // Profile picture URL (Bloxity `pfp`), relayed so other players can draw it.
 export const PFP_MAX_LEN = 512;
-// Presence (presence.ts): the Bloxity avatar JSON relayed for the others to draw, the most pets
-// drawn per player, and the pose bounds (|x|, |y| and z up to `xy` m; z down to -`z` m: a race's
-// track runs far down -Z; speed in m/s).
+// Presence (presence.ts): the Bloxity avatar JSON relayed for the others to draw, and the pose
+// bounds (|x|, |y| and z up to `xy` m; z down to -`z` m; speed in m/s). Generous ceilings, not
+// game rules: the hub and the river are a few hundred metres long.
 export const AVATAR_MAX_LEN = 3000;
-export const PRESENCE_PETS_MAX = 8;
 export const POSE_BOUNDS = { xy: 5000, z: 1e8, speed: 2000 };
 
 // Colyseus drops the whole connection for a WebSocket message above this (default 4 KB).
@@ -28,24 +27,10 @@ export const MAX_PAYLOAD_BYTES = 128 * 1024;
 // How long a dropped connection (WiFi blip, backgrounded tab) may reconnect with the same session.
 export const RECONNECT_SECONDS = 20;
 
-// Upper bounds for saved values, so a forged payload cannot store a bogus number. Generous
-// ceilings, not game rules: the dearest engine costs ~3.6e28 Wins (client ENGINE gems).
-export const CURRENCY_MAX = 1e33; // trophies (Wins), gems, lightning (energy)
-export const REBIRTHS_MAX = 1e9;
-export const DISTANCE_MAX = 1e15; // personal best race distance, studs
-export const PLAY_SECONDS_MAX = 31_536_000; // ~1 year
+// Upper bounds for saved values, so a forged payload cannot store a bogus number. A generous
+// ceiling, not a game rule: the dearest rod costs ~3e15 money.
+export const CURRENCY_MAX = 1e33;
 
-// Owned catalog ids (client BOATS.list ~20, ENGINE ~34, PARTNER ~20, TRAILS ~29), with slack.
-export const OWNED_MAX = 256;
-// Pets (client PETS): at most PETS_MAX owned, PET_TIERS_MAX craft tiers, slots / storage the
-// counters can grow to.
-export const PETS_MAX = 1000;
-export const PET_TIERS_MAX = 16;
-export const PET_SLOTS_MAX = 50;
-// Online Gifts (client GIFTS.list, 12 of them): claimed indexes and potion counts.
-export const GIFTS_MAX = 64;
-export const POTION_KINDS_MAX = 32;
-export const POTION_COUNT_MAX = 1e9;
 // Daily Reward (client DAILY.days): days in one calendar cycle.
 export const DAILY_DAYS = 7;
 
@@ -73,8 +58,8 @@ export const BOSS_AT_MIN = [20, 50];
 export const BOSS_LENGTH_MIN = 4;
 export const BOSS_NEED_PER_PLAYER = 8;
 
-// Leaderboards (leaderboard.ts; client plaza.js boards): the saved doc fields ranked (Rebirth,
-// Wins, Power, Playtime), rows per board and how often the lists are re-read and re-sent.
+// Leaderboards (leaderboard.ts; the plaza boards): the saved doc fields ranked (best pull, animals
+// caught, money per second), rows per board and how often the lists are re-read and re-sent.
 export const LEADERBOARD_STATS = ["bestOdds", "catches", "income"] as const;
 export type LeaderboardStat = (typeof LEADERBOARD_STATS)[number];
 export const LEADERBOARD_SIZE = 10;
@@ -95,10 +80,10 @@ export const LEADERBOARD_REPORT_EVERY_MS = 15 * 1000; // docs: batch every 10-30
 export const REPORT_BATCH_MAX = 200; // scores per report call
 export const SCORE_MAX = Number.MAX_SAFE_INTEGER;
 
-// Ids from the client's catalogs (boats, engines incl. `ladder-N`, partners, trails, pet kinds,
-// potions): camelCase slugs, so nothing odd is stored.
+// Ids from the client's catalogs (rods, baits, trails, animals, potions, season girls): short
+// slugs, so nothing odd is stored. A catalog id outside this pattern is silently dropped from a save.
 export const ID_PATTERN = /^[A-Za-z0-9_-]{1,32}$/;
 
-// The client's per-browser fallback id for players who are not signed in to Bloxity.
+// The client's per-page fallback id for players who are not signed in to Bloxity.
 // Guests are never persisted.
 export const GUEST_ID_PREFIX = "guest-";

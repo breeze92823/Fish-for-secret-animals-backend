@@ -1,17 +1,16 @@
 import { Room, Client, CloseCode } from "colyseus";
 import { WorldState, PlayerState } from "./schema/WorldState.js";
-import { INVITES_MAX, GAME_SLUG, BASE_COUNT, DISTANCE_MAX, GUEST_ID_PREFIX, LEADERBOARD_EVERY_MS, NAME_MAX, PFP_MAX_LEN, RECONNECT_SECONDS, ROOM_MAX_CLIENTS } from "../constants.js";
+import { INVITES_MAX, GAME_SLUG, BASE_COUNT, GUEST_ID_PREFIX, LEADERBOARD_EVERY_MS, NAME_MAX, PFP_MAX_LEN, RECONNECT_SECONDS, ROOM_MAX_CLIENTS } from "../constants.js";
 import { pickBase } from "../bases.js";
 import { sanitizeGame } from "../game.js";
 import { resolveIdentity } from "../auth.js";
 import { reportProgress } from "../reporter.js";
 import { AD_PLACEMENT_PATTERN, verifyAdReward, verifyBase } from "../ads.js";
 import { getPlayers, type PlayerDoc } from "../db.js";
-import { sanitizeProgress } from "../sanitize.js";
 import { accrue, rollWedge, spinStateFrom, type SpinState } from "../spin.js";
 import { claimDaily, dailyFields, dailyView, readDaily, rollDaily, type DailyState } from "../daily.js";
 import { bossView, bossWindow, feedBoss, newBoss, type BossState } from "../boss.js";
-import { applyAvatar, applyLoadout, applyPen, applyPose, cleanEmote, cleanThrow } from "../presence.js";
+import { applyAvatar, applyPen, applyPose, cleanEmote, cleanThrow } from "../presence.js";
 import { ranksOf, topBoards } from "../leaderboard.js";
 
 function sanitizeName(raw: unknown): string {
@@ -26,7 +25,7 @@ function sanitizePfp(raw: unknown): string {
  * Room every client joins via `client.joinOrCreate("world", { userId, username })`. Loads and
  * saves each signed-in player's progress (MongoDB, see db.ts) -- the client keeps no save of its
  * own, so this is the only place progress lives. The game is client-authoritative: no gameplay
- * rules live here, saves are only bounded (sanitize.ts). The room is exactly as big as the hub has
+ * rules live here, saves are only bounded (game.ts). The room is exactly as big as the hub has
  * bases (maxClients = BASE_COUNT) and every player is assigned one (`PlayerState.base`); full rooms
  * spill into a fresh one automatically.
  */
@@ -38,7 +37,7 @@ export class WorldRoom extends Room<{ state: WorldState }> {
   // room's own Mongo reads/writes. Guests have no entry.
   userIds = new Map<string, string>();
 
-  // sessionIds that already got a progress/noProgress answer for their current identity.
+  // sessionIds that already got a `game` answer for their current identity.
   private identified = new Set<string>();
   // sessionIds whose current identity's save has been read: only these may write. A save sent
   // before the load answered would overwrite the stored progress with a fresh player's defaults.
@@ -51,34 +50,7 @@ export class WorldRoom extends Room<{ state: WorldState }> {
   private dailies = new Map<string, DailyState>();
 
   messages = {
-    // Debounced push of the client's whole progress. Upserts, so a first save creates the document.
-    saveProgress: async (client: Client, msg: unknown) => {
-      const p = this.state.players.get(client.sessionId);
-      const patch = sanitizeProgress(msg);
-      if (!p || !patch || !this.loaded.has(client.sessionId)) return;
-
-      const userId = this.userIds.get(client.sessionId);
-      if (!userId) return;
-      const players = getPlayers();
-      if (!players) return; // Mongo unset/unreachable -- degrade silently
-      // The personal best only ever goes up ($max), so a stale or replayed save can't lower it.
-      const { bestDistance, ...rest } = patch;
-      try {
-        await players.updateOne(
-          { _id: userId },
-          {
-            // Display name comes from this connection's own PlayerState, not `msg`.
-            $set: { ...rest, username: p.username || "Player", updatedAt: new Date() },
-            ...(bestDistance !== undefined && { $max: { bestDistance } }),
-            $setOnInsert: { version: 1 },
-          },
-          { upsert: true },
-        );
-      } catch (err) {
-        console.warn("[WorldRoom] saveProgress failed", err);
-      }
-    },
-    // Throw Food for Baddies' whole progress (game.ts), debounced client-side. The only save the game
+    // The game's whole progress (game.ts), debounced client-side. The only save the game
     // has: nothing is kept in the browser. Ignored until this session's load has answered (a save
     // sent first would overwrite the stored progress with a fresh player's), and for guests.
     saveGame: async (client: Client, msg: unknown) => {
@@ -151,24 +123,11 @@ export class WorldRoom extends Room<{ state: WorldState }> {
       client.send("spinResult", { ok: true, id: wedge.id, ...this.spinView(s, now) });
       await this.saveSpins(client.sessionId, s);
     },
-    // The sender's race, relayed through the roster so everyone draws them on the distance bar and
-    // podium: { racing, distance (studs this race) }, a few times a second while racing.
-    race: (client: Client, msg: { racing?: unknown; distance?: unknown }) => {
-      const p = this.state.players.get(client.sessionId);
-      if (!p) return;
-      p.racing = msg?.racing === true;
-      const d = msg?.distance;
-      p.distance = p.racing && typeof d === "number" && Number.isFinite(d) ? Math.min(DISTANCE_MAX, Math.max(0, d)) : 0;
-    },
-    // Presence (presence.ts): the sender's pose ~10x/s, its equipped gear and its Bloxity look,
-    // relayed through the roster so everyone draws them in the world (client remotePlayers.js).
+    // Presence (presence.ts): the sender's pose ~10x/s, relayed through the roster so everyone
+    // draws them in the hub (client remote.js).
     pose: (client: Client, msg: unknown) => {
       const p = this.state.players.get(client.sessionId);
       if (p) applyPose(p, msg);
-    },
-    loadout: (client: Client, msg: unknown) => {
-      const p = this.state.players.get(client.sessionId);
-      if (p) applyLoadout(p, msg);
     },
     // The base's placed baddies (presence.ts applyPen): everyone draws them in that player's pen.
     pen: (client: Client, msg: unknown) => {
@@ -198,7 +157,7 @@ export class WorldRoom extends Room<{ state: WorldState }> {
       if (p) applyAvatar(p, msg);
     },
     // Re-states identity after a login/logout that happens AFTER join (a guest who signs in
-    // mid-session). The server answers with progress/noProgress for the new identity.
+    // mid-session). The server answers with the new identity's `game`.
     identify: async (client: Client, msg: { token?: string; username?: string; userId?: string; pfp?: string; ref?: string }) => {
       const p = this.state.players.get(client.sessionId);
       if (!p) return;
@@ -238,7 +197,7 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     }
   }
 
-  // `leaderboard` { boards: { rebirths|trophies|energy|playtime: [{ name, value }] }, ranks: { stat: n | null } }.
+  // `leaderboard` { boards: { bestOdds|catches|income: [{ name, value }] }, ranks: { stat: n | null } }.
   private async sendLeaderboard(client: Client) {
     const userId = this.userIds.get(client.sessionId) ?? "";
     const [boards, ranks] = await Promise.all([topBoards(), ranksOf(userId)]);
@@ -250,7 +209,7 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     }
   }
 
-  async onJoin(client: Client, options?: { ref?: string; token?: string; username?: string; userId?: string; pfp?: string; base?: number; pose?: unknown; loadout?: unknown; avatar?: string }) {
+  async onJoin(client: Client, options?: { ref?: string; token?: string; username?: string; userId?: string; pfp?: string; base?: number; pose?: unknown; avatar?: string }) {
     const p = new PlayerState();
     // One base per player: the lowest free one, or the one a rejoining player asks for (`options.base`)
     // when it is still free. Bases are freed in forgetSession, so a seat held for a reconnection
@@ -262,7 +221,6 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     p.pfp = sanitizePfp(options?.pfp);
     // Presence from the join options, so the others draw the newcomer right away.
     applyPose(p, options?.pose);
-    applyLoadout(p, options?.loadout);
     applyAvatar(p, options);
     applyPen(p, (options as { pen?: unknown } | undefined)?.pen);
     this.state.players.set(client.sessionId, p);
@@ -366,7 +324,7 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     return { spins: s.spins, nextAt: s.nextAt, serverTime: now };
   }
 
-  // The spin fields go straight to Mongo (saveProgress never carries them).
+  // The spin fields go straight to Mongo (the `saveGame` save never carries them).
   private async saveSpins(sessionId: string, s: SpinState) {
     const userId = this.userIds.get(sessionId);
     const players = getPlayers();
@@ -402,8 +360,8 @@ export class WorldRoom extends Room<{ state: WorldState }> {
   }
 
   // Client-trusted Bloxity user id (guest ids are dropped, see GUEST_ID_PREFIX). A forged id can
-  // only read/overwrite the SENDER's own save (there is no cross-player read in `saveProgress`).
-  // Called from both onJoin and `identify`; answers with progress / noProgress / serverError.
+  // only read/overwrite the SENDER's own save (there is no cross-player read in `saveGame`).
+  // Called from both onJoin and `identify`; answers with `game` / serverError.
   private setUserId(client: Client, p: PlayerState, raw: string) {
     let userId = raw.slice(0, 128);
     // Guests (client-made `guest-...` ids) get no identity: nothing is loaded or saved for them.
@@ -436,16 +394,16 @@ export class WorldRoom extends Room<{ state: WorldState }> {
       this.userIds.set(client.sessionId, userId);
     } else {
       // No identity: stop persisting for this connection. (The client flushes a final
-      // saveProgress under the OLD id before sending `identify`.)
+      // saveGame under the OLD id before sending `identify`.)
       this.userIds.delete(client.sessionId);
     }
 
     void this.loadProgress(client, userId, p);
   }
 
-  // Sends the saved doc to just this client so it can hydrate its state ("progress"), or
-  // "noProgress" when there is nothing to load (new account, guest, or Mongo unset). A failed read
-  // sends "serverError" and keeps saving off, so a save that could not be read is never overwritten.
+  // Sends the saved game to just this client so it can hydrate its state (`game`, with `game: null`
+  // when there is nothing to load: new account, guest, or Mongo unset). A failed read sends
+  // "serverError" and keeps saving off, so a save that could not be read is never overwritten.
   private async loadProgress(client: Client, userId: string, p: PlayerState) {
     const players = getPlayers();
     let doc: PlayerDoc | null = null;
@@ -470,8 +428,6 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     if (!doc && userId && players && ref && this.verified.has(sid)) await this.creditInvite(userId, ref);
     if (this.state.players.get(client.sessionId) !== p) return; // left while the invite was credited
     client.send("game", { game: doc?.game ?? null, invites: Math.min(INVITES_MAX, Number(doc?.invites) || 0), serverTime: now });
-    if (!doc) client.send("noProgress", { serverTime: now });
-    else client.send("progress", { ...(sanitizeProgress(doc) ?? {}), serverTime: now });
     client.send("spins", this.spinView(spin, now));
 
     // Daily Reward: today's day unlocks on join (server clock), then the client gets the calendar.

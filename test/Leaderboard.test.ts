@@ -32,7 +32,7 @@ describe("leaderboard", () => {
     const c = await colyseus.connectTo(room, { userId: "u1", username: "Ann" });
     let got: any = null;
     c.onMessage("leaderboard", (m: any) => (got = m));
-    c.onMessage("progress", () => {});
+    c.onMessage("game", () => {});
     c.onMessage("spins", () => {});
     c.onMessage("daily", () => {});
     fake.release();
@@ -52,7 +52,7 @@ describe("leaderboard", () => {
     const c = await colyseus.connectTo(room, { userId: "u9", username: "New" });
     let got: any = null;
     c.onMessage("leaderboard", (m: any) => (got = m));
-    c.onMessage("noProgress", () => {});
+    c.onMessage("game", () => {});
     c.onMessage("spins", () => {});
     c.onMessage("daily", () => {});
     fake.release();

@@ -1,5 +1,7 @@
 import { SPIN_CAP, SPIN_EVERY_MS, SPIN_START, SPIN_WEDGES, SPINS_MAX } from "./constants.js";
-import { finite, clampInt } from "./sanitize.js";
+
+const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+const clampInt = (v: number, max: number, min = 0): number => Math.min(max, Math.max(min, Math.floor(v)));
 
 // The Spin wheel is the one server-authoritative system: the server owns each player's spin count
 // and free-spin clock and rolls every spin, so a client can neither give itself spins nor pick its

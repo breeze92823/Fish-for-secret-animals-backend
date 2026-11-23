@@ -50,7 +50,7 @@ describe("daily reward room", () => {
     const c = await colyseus.connectTo(room, { userId: "d1" });
     let daily: any = null;
     const results: any[] = [];
-    c.onMessage("progress", () => {});
+    c.onMessage("game", () => {});
     c.onMessage("daily", (m: any) => (daily = m));
     c.onMessage("dailyResult", (m: any) => results.push(m));
     fake.release();
@@ -69,8 +69,8 @@ describe("daily reward room", () => {
     assert.deepStrictEqual(results.filter((r) => r.ok).map((r) => r.day), [1]);
     assert.deepStrictEqual((fake.docs.get("d1") as any).dailyClaimed, [0, 1]);
 
-    // saveProgress can't touch the server-owned fields.
-    c.send("saveProgress", { trophies: 1, dailyDay: 7, dailyClaimed: [] });
+    // A save can't touch the server-owned fields.
+    c.send("saveGame", { money: 1, dailyDay: 7, dailyClaimed: [] });
     await sleep(150);
     assert.strictEqual((fake.docs.get("d1") as any).dailyDay, 2);
     assert.deepStrictEqual((fake.docs.get("d1") as any).dailyClaimed, [0, 1]);
@@ -83,7 +83,7 @@ describe("daily reward room", () => {
     const room = await colyseus.createRoom<WorldState>("world", {});
     const c = await colyseus.connectTo(room, { userId: "guest-q" });
     let result: any = null;
-    c.onMessage("noProgress", () => {});
+    c.onMessage("game", () => {});
     c.onMessage("daily", () => {});
     c.onMessage("dailyResult", (m: any) => (result = m));
     await sleep(150);

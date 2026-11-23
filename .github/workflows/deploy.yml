@@ -11,7 +11,7 @@ env:
   REGISTRY: ghcr.io
   # Repo variable, set under Settings -> Secrets and variables -> Actions -> Variables.
   # Must match the lowercase game ID created on the Bloxity "My Games" dashboard
-  # (the client's GAME_SLUG in src/config.js: bowling-roll).
+  # (the client's GAME_SLUG in src/config.js: fish-for-secret-animals).
   GAME_ID: ${{ vars.LEGION_GAME_ID || secrets.LEGION_GAME_ID }}
 
 jobs:
@@ -81,20 +81,20 @@ jobs:
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.GAME_ID }}-server:${{ steps.channel.outputs.channel }}-${{ github.sha }}
 
-      # seatCap = the room's maxClients (https://hosting.bloxity.io/docs): the matchmaker fills a pod
+      # roomSize = the room's maxClients (docs.bloxity.io, Multiplayer matchmaker: "send roomSize, not seatCap"): Boxity sizes the pod itself and the matchmaker fills a pod
       # to it, then starts another. A room holds one player per base, so it is the number of bases
       # (BASE_COUNT in src/constants.ts, which ROOM_MAX_CLIENTS equals).
       - name: Deploy to Legion
         run: |
-          SEAT_CAP=$(grep -oP 'BASE_COUNT\s*=\s*\K\d+' src/constants.ts | head -n1)
-          if [ -z "${SEAT_CAP}" ]; then
+          ROOM_SIZE=$(grep -oP 'BASE_COUNT\s*=\s*\K\d+' src/constants.ts | head -n1)
+          if [ -z "${ROOM_SIZE}" ]; then
             echo "::error::Could not read BASE_COUNT from src/constants.ts."
             exit 1
           fi
           curl -sSf -X POST "https://legion.bloxity.io/v1/apps/${GAME_ID}/deploy" \
             -H "Authorization: Bearer ${LEGION_DEPLOY_TOKEN}" \
             -H 'Content-Type: application/json' \
-            -d "{\"channel\":\"${CHANNEL}\",\"image\":\"${REGISTRY}/${OWNER}/${GAME_ID}-server:${CHANNEL}-${{ github.sha }}\",\"version\":\"${{ github.sha }}\",\"seatCap\":${SEAT_CAP}}"
+            -d "{\"channel\":\"${CHANNEL}\",\"image\":\"${REGISTRY}/${OWNER}/${GAME_ID}-server:${CHANNEL}-${{ github.sha }}\",\"version\":\"${{ github.sha }}\",\"roomSize\":${ROOM_SIZE}}"
         env:
           LEGION_DEPLOY_TOKEN: ${{ secrets.LEGION_DEPLOY_TOKEN }}
           CHANNEL: ${{ steps.channel.outputs.channel }}
