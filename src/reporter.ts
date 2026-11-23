@@ -80,11 +80,35 @@ export async function flushReports(): Promise<void> {
   if (pending.size) await flushReports(); // more than one batch queued
 }
 
+// Declares the boards (ids, labels, settings) on their own, with no scores, so they exist on Bloxity
+// and show on the game page / in the menu as soon as the server runs, instead of only after the
+// first verified player has a score to report. Retried by the timer until Bloxity accepts it; the
+// first scores still carry the definitions if this never got through.
+let declareWarned = false;
+export async function declareBoards(): Promise<void> {
+  if (!enabled() || declared) return;
+  try {
+    const res = await doFetch(`${apiUrl()}/v1/leaderboards/hosted/${encodeURIComponent(process.env.BLOXITY_GAME_ID!)}/report`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.BLOXITY_REPORT_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ boards: LEADERBOARDS.map(({ id, label, order, mode, format, reset }) => ({ id, label, order, mode, format, reset })), scores: [] }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    declared = true;
+    console.log("[reporter] leaderboards declared on Bloxity");
+  } catch (err) {
+    if (!declareWarned) console.warn("[reporter] could not declare the leaderboards yet (retrying)", err);
+    declareWarned = true;
+  }
+}
+
 let timer: NodeJS.Timeout | null = null;
 // Starts the periodic flush (once per process; harmless with no report token).
 export function startReporter(): void {
   if (timer) return;
-  timer = setInterval(() => void flushReports(), LEADERBOARD_REPORT_EVERY_MS);
+  void declareBoards();
+  timer = setInterval(() => void declareBoards().then(flushReports), LEADERBOARD_REPORT_EVERY_MS);
   timer.unref();
 }
 
@@ -93,4 +117,5 @@ export function __resetReporterForTest(): void {
   pending.clear();
   lastQueued.clear();
   declared = false;
+  declareWarned = false;
 }

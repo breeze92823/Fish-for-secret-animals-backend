@@ -5,7 +5,7 @@ import type appConfig from "../src/app.config.js";
 import { WorldState } from "../src/rooms/schema/WorldState.js";
 import { __setPlayersForTest } from "../src/db.js";
 import { __setVerifierForTest, resolveIdentity } from "../src/auth.js";
-import { __resetReporterForTest, __setFetchForTest, boardUserId, flushReports, reportProgress } from "../src/reporter.js";
+import { __resetReporterForTest, __setFetchForTest, boardUserId, declareBoards, flushReports, reportProgress } from "../src/reporter.js";
 import { fakePlayers, sleep } from "./fakePlayers.js";
 import { testServer } from "./server.js";
 
@@ -60,6 +60,35 @@ describe("bloxity leaderboards + identity", () => {
     await flushReports();
     assert.deepStrictEqual(calls[1].body.scores, [{ board: "baddies-caught", userId: "legion_abc", score: 13 }], "only what changed");
     assert.strictEqual(calls[1].body.boards, undefined, "the boards are declared once");
+  });
+
+  it("declares the boards on their own at start, so they exist before any score", async () => {
+    await declareBoards();
+    assert.strictEqual(calls.length, 1);
+    assert.strictEqual(calls[0].url, "https://api.test/v1/leaderboards/hosted/fish-for-secret-animals/report");
+    assert.deepStrictEqual(calls[0].body.scores, []);
+    assert.deepStrictEqual(calls[0].body.boards.map((b: any) => b.id), ["best-pull", "baddies-caught", "money-per-second"]);
+    await declareBoards();
+    assert.strictEqual(calls.length, 1, "declared once");
+    reportProgress("abc", { catches: 3 });
+    await flushReports();
+    assert.strictEqual(calls[1].body.boards, undefined, "the scores no longer repeat the definitions");
+    assert.deepStrictEqual(calls[1].body.scores, [{ board: "baddies-caught", userId: "legion_abc", score: 3 }]);
+  });
+
+  it("keeps trying to declare the boards until Bloxity accepts", async () => {
+    let ok = false;
+    __setFetchForTest((async (url: any, init: any) => {
+      calls.push({ url: String(url), auth: init.headers.Authorization, body: JSON.parse(init.body) });
+      return { ok, status: ok ? 200 : 503, json: async () => ({ ok: true }) } as any;
+    }) as any);
+    await declareBoards();
+    assert.strictEqual(calls.length, 1);
+    ok = true;
+    await declareBoards();
+    assert.strictEqual(calls.length, 2, "retried after the failure");
+    await declareBoards();
+    assert.strictEqual(calls.length, 2);
   });
 
   it("reports a verified player's save, never a guest's", async () => {
