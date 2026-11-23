@@ -15,10 +15,10 @@ Frontend (3D client) lives at `../Bowling-roll`. Colyseus + Mongo, ported from `
 - `src/constants.ts` bounds must cover the client's `src/config.js` (catalog ids match `ID_PATTERN`, incl. engine `ladder-N`; currency up to ~3.6e28). A contract change goes in both projects.
 - CI/CD: `.github/workflows/deploy.yml` tests on PRs and pushes to `main`/`dev`; pushes also build+push a GHCR image and deploy to Bloxity Legion (`main` = prod, `dev` = dev), sending `seatCap` = `BASE_COUNT` read from `src/constants.ts` (= the room's `maxClients`, see Bases above). Needs repo var/secret `LEGION_GAME_ID` (= `bowling-roll`) and secret `LEGION_DEPLOY_TOKEN`.
 
-## Hub presence (Throw Food for Baddies)
+## Hub presence (Fish for Secret Animals)
 `PlayerState` also carries what the others draw (presence.ts, `test/Hub.test.ts`): `uid` (Bloxity id, "" = guest, for chat bubbles), `grounded`, `vy`, `arm` + `armOn`, `lean`, `act` ("" | aim | train), `food`, `carry` ("baddieId:size"), `income`, `pen` ("id:size,..." capped at `PEN_MAX` = the client's ECONOMY.maxCapacity). Messages: `pose` (extended), `pen` { list }, `throw` { food, from, to, dur, peak, power, lucky } and `emote` { id } (relayed to everyone else as `throwFx` / `emoteFx` with the sender's `sid`, bounded by `cleanThrow` / `cleanEmote`), `setAvatar`. The Bowling Roll fields above (race, boats...) are unused by this game.
 
-## Game save and rewarded ads (Throw Food for Baddies)
+## Game save and rewarded ads (Fish for Secret Animals)
 - `src/game.ts` `sanitizeGame`: the client's whole progress (`S`) bounded and shaped; stored as the `game` field of `players` by the `saveGame` message (ignored for guests, without a database, and before the session's load answered). The join answer is a `game` message { game | null, serverTime } (`serverError` when the read failed: the client then keeps saving off). `test/GameSave.test.ts`. The client keeps nothing in the browser.
 - `src/ads.ts`: `adReward` { placement, rewardToken, apiUrl } -> verifies the token with Bloxity (`POST {api}/v1/ads/reward/verify` { gameSlug, rewardToken }; the api is `BLOXITY_API_URL` if set, else the client's apiUrl only when it is an https bloxity.io host, else prod; slug = `GAME_SLUG` / `BLOXITY_GAME_ID`) and answers `adResult` { ok, placement, reason? }. The client grants the reward only on ok.
 
@@ -27,7 +27,7 @@ Frontend (3D client) lives at `../Bowling-roll`. Colyseus + Mongo, ported from `
 - `src/legion-room-reporter.ts`: every 2 s posts this pod's rooms to the matchmaker (`MATCHMAKER_REPORT_URL`/<gameId>/rooms, bearer `BLOXITY_REPORT_TOKEN`) so the game's Bloxity page lists them (Open Rooms, Join -> `?roomId=`). A no-op unless Bloxity hosting injected those env vars plus `BLOXITY_GAME_ID`. Started from `index.ts` after `listen`.
 - Leaderboards: `LEADERBOARDS` in `constants.ts` (ids/settings mirror the client's `config.js`; permanent once declared). `saveGame` copies `bestOdds`, `catches`, `income` out of the save to the document root (indexed, ranked by `leaderboard.ts`, sent to everyone as `leaderboard` { boards, ranks } after the load and every minute: the plaza boards) and, for verified accounts, queues them for `reporter.ts` (batched every 15 s to `/v1/leaderboards/hosted/{gameId}/report`, `legion_<id>`). Tests: `Leaderboard`, `Reporter`, `RoomReporter`.
 
-## Hungry Giant, spin prizes and save extras (Throw Food for Baddies)
+## Hungry Giant, spin prizes and save extras (Fish for Secret Animals)
 - `src/boss.ts` (`test/Boss.test.ts`): the room-wide event at `BOSS_AT_MIN` past every UTC hour for `BOSS_LENGTH_MIN` minutes (client `EVENTS.boss`, keep in step). `WorldRoom.tickBoss` (1 s clock + on join / throw) starts a visit (`need` = `BOSS_NEED_PER_PLAYER` x players then) and broadcasts `boss` { key, on, fill, need, won, endsAt }; each `throw` while she is here feeds her (`feedBoss`) and re-broadcasts `boss`; the filling throw broadcasts `bossWin` { key, throws: { sessionId: n } } (each client pays its own reward).
 - `SPIN_WEDGES` ids are the client's `SPIN.wedges` ids (cash1, luck, cash5, lucky, income, jackpot).
 - `game.ts` keeps pen / hotbar `v` (variant) and `a` (season girl's area), `tickets`, `lures`, `potions`, `recordPaid`, `indexPaid`, `titles` and the extra `stats` (bestDist, bestStreak, bestVariant, bestRarity, bestArea). Presence `pen` entries carry `:v` when a variant.

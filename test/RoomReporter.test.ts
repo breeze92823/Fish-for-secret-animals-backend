@@ -22,7 +22,7 @@ describe("room reporter (Open Rooms)", () => {
     }) as any);
     process.env.MATCHMAKER_REPORT_URL = "https://matchmaker.test/v1/report/";
     process.env.BLOXITY_REPORT_TOKEN = "tok";
-    process.env.BLOXITY_GAME_ID = "throw-food-for-baddies";
+    process.env.BLOXITY_GAME_ID = "fish-for-secret-animals";
     process.env.POD_NAME = "pod-1";
   });
   afterEach(() => {
@@ -39,7 +39,7 @@ describe("room reporter (Open Rooms)", () => {
     await sleep(100);
     assert.strictEqual(await reportRoomsOnce(), true);
     assert.strictEqual(calls.length, 1);
-    assert.strictEqual(calls[0].url, "https://matchmaker.test/v1/report/throw-food-for-baddies/rooms");
+    assert.strictEqual(calls[0].url, "https://matchmaker.test/v1/report/fish-for-secret-animals/rooms");
     assert.strictEqual(calls[0].headers.authorization, "Bearer tok");
     const body = calls[0].body;
     assert.strictEqual(body.podName, "pod-1");

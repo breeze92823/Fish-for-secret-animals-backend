@@ -1,6 +1,6 @@
 import { CURRENCY_MAX, ID_PATTERN, PEN_MAX } from "./constants.js";
 
-// Throw Food for Baddies' save: the client's whole progress (game/state.js `S`), stored as one
+// Fish for Secret Animals' save: the client's whole progress (game/state.js `S`), stored as one
 // `game` field of the player's document. The client keeps nothing in the browser; this is the only
 // save. Client-authoritative like the rest: the server only bounds and shapes it so a forged
 // payload cannot store junk or a huge document.
@@ -21,6 +21,10 @@ export interface GameSave {
   foods: string[];
   food: string;
   foodsV: number;
+  baits: Record<string, number>; // bait id -> casts left
+  bait: string; // the equipped bait ("" = none)
+  trails: string[]; // owned trail ids
+  trail: string; // the equipped trail ("" = none)
   upgrades: Record<string, number>;
   baddies: SavedBaddie[];
   hotbar: Omit<SavedBaddie, "uid">[];
@@ -53,6 +57,8 @@ export const GAME_LIMITS = {
   variant: 9, // client VARIANTS
   areas: 63, // lane areas (client AREAS)
   potions: 16, // potion kinds kept
+  baits: 64, // bait kinds kept
+  baitCasts: 9999, // casts of one bait
   titles: 64, // titles kept
   titleLen: 64, // characters in one title
   tickets: 1e12,
@@ -122,6 +128,14 @@ export function sanitizeGame(raw: unknown): GameSave | null {
   const train = isObject(raw.train) ? raw.train : {};
   const stats = isObject(raw.stats) ? raw.stats : {};
   const foods = idList(raw.foods, GAME_LIMITS.ids);
+  const baits: Record<string, number> = {};
+  if (isObject(raw.baits)) {
+    for (const [id, n] of Object.entries(raw.baits)) {
+      if (Object.keys(baits).length >= GAME_LIMITS.baits) break;
+      if (isId(id) && int(n, GAME_LIMITS.baitCasts) > 0) baits[id] = int(n, GAME_LIMITS.baitCasts);
+    }
+  }
+  const trails = idList(raw.trails, GAME_LIMITS.ids);
   return {
     money: num(raw.money, CURRENCY_MAX),
     strength: num(raw.strength, CURRENCY_MAX),
@@ -129,6 +143,10 @@ export function sanitizeGame(raw: unknown): GameSave | null {
     foods,
     food: isId(raw.food) ? raw.food : foods[foods.length - 1] ?? "",
     foodsV: int(raw.foodsV, 100),
+    baits,
+    bait: isId(raw.bait) && baits[raw.bait] ? raw.bait : "",
+    trails,
+    trail: isId(raw.trail) && trails.includes(raw.trail) ? raw.trail : "",
     upgrades,
     baddies,
     hotbar,

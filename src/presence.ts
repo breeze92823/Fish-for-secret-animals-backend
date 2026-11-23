@@ -58,7 +58,7 @@ export function applyPen(p: PlayerState, msg: unknown): void {
   p.pen = out.join(",");
 }
 
-// A throw as the others replay it: `throw` { food, from, to, dur, peak, power, lucky }, bounded.
+// A throw as the others replay it: `throw` { food, from, to, dur, peak, power, lucky, trail }, bounded.
 // Returns the sanitized event, or null when it is not a throw.
 export function cleanThrow(msg: unknown) {
   if (!msg || typeof msg !== "object") return null;
@@ -80,6 +80,7 @@ export function cleanThrow(msg: unknown) {
     peak: clamp(m.peak, 0, 60),
     power: finite(m.power) ? clamp(m.power, 0, 1) : 1,
     lucky: m.lucky === true,
+    trail: isId(m.trail) ? m.trail : "", // the sender's equipped trail (client TRAILS id)
   };
 }
 

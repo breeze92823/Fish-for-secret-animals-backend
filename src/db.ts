@@ -42,7 +42,7 @@ export interface PlayerDoc {
   income?: number;
   invites?: number; // friends who joined from this player's invite link (each gives an income boost, see credit in WorldRoom)
   invitedBy?: string; // the account whose invite link brought this player (set once, on their first visit)
-  game?: GameSave; // Throw Food for Baddies' whole progress (game.ts), written by `saveGame`
+  game?: GameSave; // Fish for Secret Animals' whole progress (game.ts), written by `saveGame`
   // Spin wheel (spin.ts): written only by the server's `spin` handler, never by saveProgress.
   spins?: number; // spins ready to use
   spinAt?: number; // epoch ms the next free spin arrives

@@ -41,6 +41,23 @@ describe("game save", () => {
     assert.ok(!("hacked" in g) && !("evil" in g.stats));
   });
 
+  it("keeps owned baits and trails, bounded", () => {
+    const g = sanitizeGame({
+      baits: { worm: 7, golden: 99999, "bad id": 3, rainbow: 0, jackpot: -2 },
+      bait: "golden",
+      trails: ["rainbow", "rainbow", "bad id", "bubbles"],
+      trail: "bubbles",
+    })!;
+    assert.deepStrictEqual(g.baits, { worm: 7, golden: 9999 });
+    assert.strictEqual(g.bait, "golden");
+    assert.deepStrictEqual(g.trails, ["rainbow", "bubbles"]);
+    assert.strictEqual(g.trail, "bubbles");
+    // An equipped bait / trail that is not owned is dropped.
+    const h = sanitizeGame({ baits: { worm: 1 }, bait: "golden", trails: ["leafy"], trail: "rainbow" })!;
+    assert.strictEqual(h.bait, "");
+    assert.strictEqual(h.trail, "");
+  });
+
   it("keeps variants, season areas, tickets, potions, records and titles, bounded", () => {
     const g = sanitizeGame({
       baddies: [{ uid: 1, id: "candy_gumdrop", size: 0, v: 2, a: 5 }, { uid: 2, id: "meadow_daisy", size: 1, v: 99 }, { uid: 3, id: "meadow_daisy", size: 0, v: 0 }],
@@ -120,13 +137,13 @@ describe("rewarded ads", () => {
 
     assert.deepStrictEqual(await verifyAdReward("https://x", "g", "short"), { valid: false, reason: "token" });
     let sent: any = null;
-    const ok = await verifyAdReward("https://api.bloxity.io", "throw-food-for-baddies", "a-long-enough-token", async (url, init) => {
+    const ok = await verifyAdReward("https://api.bloxity.io", "fish-for-secret-animals", "a-long-enough-token", async (url, init) => {
       sent = { url, body: JSON.parse(init.body) };
       return { ok: true, json: async () => ({ valid: true, userId: "u1" }) };
     });
     assert.strictEqual(ok.valid, true);
     assert.strictEqual(sent.url, "https://api.bloxity.io/v1/ads/reward/verify");
-    assert.deepStrictEqual(sent.body, { gameSlug: "throw-food-for-baddies", rewardToken: "a-long-enough-token" });
+    assert.deepStrictEqual(sent.body, { gameSlug: "fish-for-secret-animals", rewardToken: "a-long-enough-token" });
     const used = await verifyAdReward("https://api.bloxity.io", "g", "a-long-enough-token", async () => ({ ok: true, json: async () => ({ valid: false, reason: "unknown" }) }));
     assert.deepStrictEqual(used, { valid: false, reason: "unknown" });
     const down = await verifyAdReward("https://api.bloxity.io", "g", "a-long-enough-token", async () => {

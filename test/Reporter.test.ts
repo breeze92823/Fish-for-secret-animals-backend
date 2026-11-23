@@ -23,7 +23,7 @@ describe("bloxity leaderboards + identity", () => {
       return { ok: true, status: 200, json: async () => ({ ok: true, dropped: {} }) } as any;
     }) as any);
     process.env.BLOXITY_REPORT_TOKEN = "tok";
-    process.env.BLOXITY_GAME_ID = "throw-food-for-baddies";
+    process.env.BLOXITY_GAME_ID = "fish-for-secret-animals";
     process.env.BLOXITY_API_URL = "https://api.test";
   });
   afterEach(() => {
@@ -45,7 +45,7 @@ describe("bloxity leaderboards + identity", () => {
     reportProgress("abc", { bestOdds: 1.5e6, catches: 12, income: 0 });
     await flushReports();
     assert.strictEqual(calls.length, 1);
-    assert.strictEqual(calls[0].url, "https://api.test/v1/leaderboards/hosted/throw-food-for-baddies/report");
+    assert.strictEqual(calls[0].url, "https://api.test/v1/leaderboards/hosted/fish-for-secret-animals/report");
     assert.strictEqual(calls[0].auth, "Bearer tok");
     assert.deepStrictEqual(
       calls[0].body.scores.sort((a: any, b: any) => a.board.localeCompare(b.board)),

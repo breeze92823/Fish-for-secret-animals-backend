@@ -2,7 +2,7 @@
 // src/config.js. Keep in step by hand.
 export const BASE_COUNT = 5;
 // The game's slug on Bloxity (the client's GAME_SLUG): the id ad-reward tokens are verified against.
-export const GAME_SLUG = process.env.BLOXITY_GAME_ID || "throw-food-for-baddies";
+export const GAME_SLUG = process.env.BLOXITY_GAME_ID || "fish-for-secret-animals";
 // Most baddies one base shows (the client's ECONOMY.maxCapacity).
 export const PEN_MAX = 24;
 // A room holds exactly one player per base, so every player gets a base of their own. This is also
@@ -88,7 +88,7 @@ export const LEADERBOARD_EVERY_MS = 60 * 1000;
 // reports the scores of Bloxity-verified accounts.
 export const LEADERBOARDS = [
   { id: "best-pull", label: "Best pull (1 in N)", stat: "bestOdds", order: "desc", mode: "best", format: "compact", reset: "none" },
-  { id: "baddies-caught", label: "Baddies caught", stat: "catches", order: "desc", mode: "best", format: "number", reset: "none" },
+  { id: "baddies-caught", label: "Animals caught", stat: "catches", order: "desc", mode: "best", format: "number", reset: "none" },
   { id: "money-per-second", label: "Money per second", stat: "income", order: "desc", mode: "best", format: "compact", reset: "none" },
 ] as const;
 export const LEADERBOARD_REPORT_EVERY_MS = 15 * 1000; // docs: batch every 10-30 s
